@@ -1,0 +1,289 @@
+.screen {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 48px 16px 40px;
+  background: #0f0f0f;
+  color: #ffffff;
+}
+
+.panel {
+  width: 100%;
+  max-width: 420px;
+}
+
+.brand {
+  margin: 0 0 28px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #a5e8fd;
+}
+
+.section-label {
+  margin: 0 0 8px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.card {
+  background: #161616;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.auth-form,
+.prompt,
+.signed-in,
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-form,
+.prompt {
+  padding: 16px;
+}
+
+.prompt {
+  align-items: center;
+  padding: 24px 16px;
+  gap: 10px;
+}
+
+.auth-title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.page-title {
+  font-size: 22px;
+}
+
+.hint,
+.prompt-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #9ca3af;
+  text-align: left;
+}
+
+.prompt-text {
+  text-align: center;
+}
+
+.field {
+  width: 100%;
+  border-radius: 10px;
+  padding: 13px;
+  font-size: 14px;
+  color: #ffffff;
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  outline: none;
+}
+
+.field::placeholder {
+  color: #374151;
+}
+
+.field:focus {
+  border-color: #a5e8fd;
+}
+
+.field:disabled {
+  opacity: 0.7;
+}
+
+.chips,
+.auth-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.chips {
+  margin-top: 6px;
+  justify-content: center;
+}
+
+.chip,
+.primary,
+.secondary,
+.danger,
+.text-btn,
+.icon-btn {
+  font: inherit;
+  cursor: pointer;
+}
+
+.chip,
+.primary,
+.secondary,
+.danger,
+.text-btn,
+.icon-btn {
+  border: 0;
+  background: transparent;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #1a1a1a;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.chip svg,
+.icon-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.primary,
+.secondary,
+.danger {
+  flex: 1;
+  border-radius: 20px;
+  padding: 13px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.primary {
+  background: #a5e8fd;
+  color: #163843;
+}
+
+.primary:disabled,
+.secondary:disabled,
+.danger:disabled,
+.chip:disabled,
+.text-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.secondary {
+  color: #6b7280;
+}
+
+.danger {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.text-btn {
+  align-self: flex-end;
+  margin-top: -4px;
+  padding: 0;
+  color: #a5e8fd;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cloud {
+  width: 28px;
+  height: 28px;
+  color: #a5e8fd;
+}
+
+.cloud.small {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+}
+
+.email {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #8ae2fb;
+  font-size: 15px;
+}
+
+.icon-btn {
+  display: inline-flex;
+  padding: 4px;
+  color: #ef4444;
+}
+
+.confirm {
+  padding: 0 16px 16px;
+}
+
+.confirm p {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+.notice {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.notice strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.notice.info {
+  background: rgba(165, 232, 253, 0.12);
+  color: #a5e8fd;
+}
+
+.notice.error {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(22, 56, 67, 0.25);
+  border-top-color: #163843;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+
+.spinner-light {
+  border-color: rgba(165, 232, 253, 0.25);
+  border-top-color: #a5e8fd;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
