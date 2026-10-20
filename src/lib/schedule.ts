@@ -11,9 +11,11 @@ import {
 import type { Reminder, ReminderKind } from '@/lib/types'
 
 export function parseReminderTime(value: string) {
-  const [h, m] = value.split(':').map((part) => Number(part))
-  const hour = Number.isFinite(h) ? Math.min(23, Math.max(0, h)) : 9
-  const minute = Number.isFinite(m) ? Math.min(59, Math.max(0, m)) : 0
+  const parts = value.split(':')
+  const hourPart = Number(parts[0])
+  const minutePart = Number(parts[1])
+  const hour = Number.isFinite(hourPart) ? Math.min(23, Math.max(0, hourPart)) : 9
+  const minute = Number.isFinite(minutePart) ? Math.min(59, Math.max(0, minutePart)) : 0
   return { hour, minute }
 }
 

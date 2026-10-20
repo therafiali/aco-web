@@ -9,7 +9,6 @@
     }
   ],
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       "cn": ["./src/lib/utils.ts"]
