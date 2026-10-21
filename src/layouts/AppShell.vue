@@ -6,7 +6,7 @@ import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { session, signOut } from '@/lib/auth'
 import { financeError, profile, refreshFinance } from '@/lib/finance'
-import acoIcon from '@aco/assets/images/icon.png'
+import acoIcon from './icon.png'
 
 const route = useRoute()
 const router = useRouter()
