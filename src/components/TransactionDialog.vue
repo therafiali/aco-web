@@ -19,9 +19,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { saveTransactionRecord } from '@/lib/finance'
+import { savePetrolRefuelReminder, saveTransactionRecord, transactions } from '@/lib/finance'
+import {
+  expenseDateFromInput,
+  formatPetrolDays,
+  isPetrolCategory,
+  suggestedRefuelDate,
+  toDateKey,
+} from '@/lib/fuel'
 import { collectCategories } from '@/lib/money'
-import { transactions } from '@/lib/finance'
 import type { Transaction } from '@/lib/types'
 
 const open = defineModel<boolean>('open', { required: true })
@@ -35,6 +41,30 @@ const date = ref('')
 const saving = ref(false)
 
 const categories = computed(() => collectCategories(transactions.value))
+const refuelDate = ref('')
+const refuelTouched = ref(false)
+const petrolHint = computed(() => {
+  if (type.value !== 'expense' || !isPetrolCategory(category.value)) return ''
+  return formatPetrolDays(Number(amount.value))
+})
+
+function applySuggestedRefuel() {
+  if (type.value !== 'expense' || !isPetrolCategory(category.value)) {
+    refuelTouched.value = false
+    refuelDate.value = ''
+    return
+  }
+  if (refuelTouched.value) return
+  const suggested = suggestedRefuelDate(Number(amount.value), expenseDateFromInput(date.value))
+  refuelDate.value = suggested ? toDateKey(suggested) : ''
+}
+
+function onRefuelDate(value: string | number) {
+  const next = String(value)
+  if (!next || next === refuelDate.value) return
+  refuelTouched.value = true
+  refuelDate.value = next
+}
 
 watch(
   () => [open.value, props.transaction, props.defaultDate] as const,
@@ -46,8 +76,15 @@ watch(
     note.value = current?.note ?? ''
     amount.value = current ? String(current.amount) : ''
     date.value = (current?.date ?? props.defaultDate ?? new Date().toISOString()).slice(0, 10)
+    refuelTouched.value = false
+    applySuggestedRefuel()
   },
 )
+
+watch([type, category, amount, date], () => {
+  if (!open.value) return
+  applySuggestedRefuel()
+})
 
 async function save() {
   const parsed = Number(amount.value)
@@ -70,6 +107,15 @@ async function save() {
       note: note.value,
       date: Number.isNaN(dateValue.getTime()) ? new Date().toISOString() : dateValue.toISOString(),
     })
+    if (type.value === 'expense' && isPetrolCategory(category.value) && refuelDate.value) {
+      try {
+        await savePetrolRefuelReminder(refuelDate.value)
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Expense saved, but the refuel date was not.')
+        open.value = false
+        return
+      }
+    }
     toast.success(props.transaction ? 'Transaction updated.' : 'Transaction added.')
     open.value = false
   } catch (error) {
@@ -106,6 +152,16 @@ async function save() {
               <SelectItem v-for="item in categories" :key="item" :value="item">{{ item }}</SelectItem>
             </SelectContent>
           </Select>
+          <p v-if="petrolHint" class="text-sm text-muted-foreground">{{ petrolHint }}</p>
+          <div v-if="refuelDate" class="grid gap-2">
+            <Label for="refuel-date">Next refuel</Label>
+            <Input
+              id="refuel-date"
+              type="date"
+              :model-value="refuelDate"
+              @update:model-value="onRefuelDate"
+            />
+          </div>
         </div>
         <div class="grid gap-2">
           <Label for="note">Note</Label>

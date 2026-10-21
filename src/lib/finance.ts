@@ -14,6 +14,11 @@ import {
   upsertTransaction,
 } from '@/lib/api'
 import { hasPeriodRolled, textId } from '@/lib/goals'
+import {
+  fireAtFromDateKey,
+  PETROL_REFUEL_REMINDER_ID,
+  PETROL_REFUEL_TIME,
+} from '@/lib/fuel'
 import { clampIntervalDays, clampMonthDay } from '@/lib/schedule'
 import type {
   ExpensePrompt,
@@ -216,7 +221,7 @@ export async function saveReminderRecord(input: {
   const now = new Date().toISOString()
   const existing = input.id ? reminders.value.find((item) => item.id === input.id) : undefined
   const reminder: Reminder = {
-    id: existing?.id ?? textId('reminder'),
+    id: input.id || existing?.id || textId('reminder'),
     title: input.title.trim(),
     note: input.note?.trim() || undefined,
     kind: input.kind,
@@ -234,6 +239,21 @@ export async function saveReminderRecord(input: {
   await saveReminder(reminder)
   if (existing) reminders.value = reminders.value.map((item) => (item.id === reminder.id ? reminder : item))
   else reminders.value = [reminder, ...reminders.value]
+}
+
+/** Updates the single Refuel reminder to the date chosen on the petrol expense. */
+export async function savePetrolRefuelReminder(dateKey: string) {
+  const fireAt = fireAtFromDateKey(dateKey, PETROL_REFUEL_TIME)
+  if (!fireAt) return
+  await saveReminderRecord({
+    id: PETROL_REFUEL_REMINDER_ID,
+    title: 'Refuel',
+    note: 'Next fuel refill',
+    kind: 'once',
+    time: PETROL_REFUEL_TIME,
+    fireAt,
+    enabled: true,
+  })
 }
 
 export async function completeReminderRecord(id: string) {
