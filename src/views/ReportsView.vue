@@ -14,7 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { goalProgress, goals, profile, transactions } from '@/lib/finance'
-import { formatMoney, inMonth, summarize } from '@/lib/money'
+import { formatMoney, inMonth, resolvePaidWith, summarize } from '@/lib/money'
 
 const current = ref(startOfMonth(new Date()))
 const rows = computed(() =>
@@ -91,6 +91,7 @@ function printReport() {
               <TableHead>Date</TableHead>
               <TableHead>Details</TableHead>
               <TableHead>Type</TableHead>
+              <TableHead>Paid</TableHead>
               <TableHead class="text-right">Amount</TableHead>
             </TableRow>
           </TableHeader>
@@ -102,6 +103,7 @@ function printReport() {
                 <p class="text-xs text-muted-foreground">{{ tx.category }}</p>
               </TableCell>
               <TableCell class="capitalize">{{ tx.type }}</TableCell>
+              <TableCell>{{ tx.type === 'expense' ? (resolvePaidWith(tx) === 'online' ? 'Online' : 'Cash') : '' }}</TableCell>
               <TableCell class="text-right">{{ tx.type === 'income' ? '+' : '-' }}{{ money(tx.amount) }}</TableCell>
             </TableRow>
           </TableBody>

@@ -6,6 +6,7 @@ import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { session, signOut } from '@/lib/auth'
 import { financeError, profile, refreshFinance } from '@/lib/finance'
+import acoIcon from '@aco/assets/images/icon.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -51,9 +52,9 @@ async function logout() {
   <div class="min-h-screen bg-background text-foreground">
     <div class="mx-auto flex min-h-screen w-full max-w-7xl">
       <aside class="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-sidebar p-4 print:hidden md:flex">
-        <div class="px-2 pb-6">
+        <div class="flex items-center gap-2 px-2 pb-6">
+          <img :src="acoIcon" alt="" class="size-9 shrink-0" />
           <p class="text-lg font-semibold tracking-[0.18em] text-primary">ACO</p>
-          <p class="text-xs text-muted-foreground">Money, goals, reminders</p>
         </div>
         <nav class="flex flex-1 flex-col gap-1">
           <RouterLink

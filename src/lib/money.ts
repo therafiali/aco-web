@@ -5,7 +5,7 @@ import {
   startOfMonth,
   subMonths,
 } from 'date-fns'
-import { CURRENCIES, DEFAULT_CATEGORIES, type Transaction } from '@/lib/types'
+import { CURRENCIES, DEFAULT_CATEGORIES, type PaidWith, type Transaction } from '@/lib/types'
 
 export const CATEGORY_ALIASES: Record<string, string> = {
   Dept: 'Debt',
@@ -50,17 +50,28 @@ export function categoryColor(category?: string) {
   return DEFAULT_CATEGORIES.find((item) => item.label === name)?.color ?? '#6B7280'
 }
 
+/** Older expenses with no payment method count as cash, same as the phone app. */
+export function resolvePaidWith(tx: Pick<Transaction, 'type' | 'paidWith'>): PaidWith {
+  if (tx.type !== 'expense') return 'cash'
+  return tx.paidWith === 'online' ? 'online' : 'cash'
+}
+
 export function summarize(transactions: Transaction[]) {
   let totalIncome = 0
-  let totalExpenses = 0
+  let cashExpenses = 0
+  let onlineExpenses = 0
   for (const tx of transactions) {
     if (tx.type === 'income') totalIncome += tx.amount
-    else totalExpenses += tx.amount
+    else if (resolvePaidWith(tx) === 'online') onlineExpenses += tx.amount
+    else cashExpenses += tx.amount
   }
+  const totalExpenses = cashExpenses + onlineExpenses
   return {
     totalIncome,
     totalExpenses,
-    balance: totalIncome - totalExpenses,
+    cashExpenses,
+    onlineExpenses,
+    balance: totalIncome - cashExpenses,
     count: transactions.length,
   }
 }
@@ -77,11 +88,67 @@ export function inMonth(transactions: Transaction[], month: Date) {
 export function matchesSearch(tx: Transaction, query: string) {
   const q = query.trim().toLowerCase()
   if (!q) return true
-  const hay = [tx.note, tx.category, normalizeCategory(tx.category), tx.type, tx.amount.toString()]
+  const paid = tx.type === 'expense' ? resolvePaidWith(tx) : ''
+  const hay = [tx.note, tx.category, normalizeCategory(tx.category), tx.type, tx.amount.toString(), paid]
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
   return hay.includes(q)
+}
+
+export interface NoteSuggestion {
+  note: string
+  amount: number
+  category?: string
+}
+
+export function recentNoteSuggestions(
+  rows: Transaction[],
+  type: Transaction['type'],
+  category: string,
+  query: string,
+): NoteSuggestion[] {
+  const q = query.trim().toLowerCase()
+  const tokens = q.split(/\s+/).filter(Boolean)
+  const seen = new Set<string>()
+  const matches: NoteSuggestion[] = []
+  for (const tx of rows) {
+    if (tx.type !== type) continue
+    if (type === 'expense') {
+      if (!category) return []
+      if (normalizeCategory(tx.category) !== normalizeCategory(category)) continue
+    }
+    const note = tx.note?.trim()
+    if (!note || note.length < 2) continue
+    const key = `${note.toLowerCase()}|${normalizeCategory(tx.category)}`
+    if (seen.has(key)) continue
+    if (q) {
+      if (note.toLowerCase() === q) continue
+      if (!tokens.every((token) => note.toLowerCase().includes(token))) continue
+    }
+    seen.add(key)
+    matches.push({ note, amount: tx.amount, category: tx.category })
+    if (matches.length >= 5) break
+  }
+  return matches
+}
+
+export function noteBreakdown(expenses: Transaction[]) {
+  const totals = new Map<string, { amount: number; count: number }>()
+  for (const tx of expenses) {
+    const note = tx.note?.trim()
+    if (!note) continue
+    const prev = totals.get(note) ?? { amount: 0, count: 0 }
+    totals.set(note, { amount: prev.amount + tx.amount, count: prev.count + 1 })
+  }
+  const rows = [...totals.entries()]
+    .map(([note, stats]) => ({ note, amount: stats.amount, count: stats.count }))
+    .sort((a, b) => b.amount - a.amount)
+  const total = rows.reduce((sum, row) => sum + row.amount, 0)
+  return rows.slice(0, 8).map((row) => ({
+    ...row,
+    percentage: total > 0 ? (row.amount / total) * 100 : 0,
+  }))
 }
 
 export function applyAnalyticsFilters(transactions: Transaction[], filters: AnalyticsFilters) {

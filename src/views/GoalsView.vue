@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,10 +36,28 @@ import {
   saveReminderRecord,
   saveTransactionRecord,
 } from '@/lib/finance'
+import { customCategories } from '@/lib/device-options'
 import { collectCategories } from '@/lib/money'
 import { transactions } from '@/lib/finance'
 import { formatReminderSchedule, reminderKindLabel, sortReminders } from '@/lib/schedule'
-import type { ExpensePrompt, Goal, GoalPeriod, Reminder, ReminderKind } from '@/lib/types'
+import type { ExpensePrompt, Goal, GoalPeriod, GoalReminderSlot, Reminder, ReminderKind } from '@/lib/types'
+
+const NAMAZ_SLOTS = [
+  { label: 'Fajr', time: '05:00' },
+  { label: 'Dhuhr', time: '13:00' },
+  { label: 'Asr', time: '16:30' },
+  { label: 'Maghrib', time: '18:30' },
+  { label: 'Isha', time: '20:00' },
+]
+const INTERVAL_PRESETS = [7, 14, 20, 30]
+
+function blankSlot(): GoalReminderSlot {
+  return { id: crypto.randomUUID(), label: '', time: '09:00' }
+}
+
+function applyNamaz() {
+  goalSlots.value = NAMAZ_SLOTS.map((slot) => ({ id: crypto.randomUUID(), label: slot.label, time: slot.time }))
+}
 
 const tab = ref('goals')
 const goalOpen = ref(false)
@@ -56,6 +74,12 @@ const goalPeriod = ref<GoalPeriod>('daily')
 const goalReminders = ref(true)
 const goalTime = ref('09:00')
 const goalPerPeriod = ref('1')
+const useCustomTimes = ref(false)
+const goalSlots = ref<GoalReminderSlot[]>([blankSlot()])
+
+watch(goalPeriod, (value) => {
+  if (value !== 'daily') useCustomTimes.value = false
+})
 
 const reminderTitle = ref('')
 const reminderNote = ref('')
@@ -74,7 +98,10 @@ const promptAmounts = ref<Record<string, string>>({})
 
 const orderedReminders = computed(() => sortReminders(reminders.value))
 const activePrompts = computed(() => prompts.value.filter((item) => item.isActive))
-const categories = computed(() => collectCategories(transactions.value))
+const categories = computed(() => {
+  const names = new Set<string>([...collectCategories(transactions.value), ...customCategories.value])
+  return [...names].sort((a, b) => a.localeCompare(b))
+})
 
 function openGoal(goal?: Goal) {
   editingGoal.value = goal ?? null
@@ -85,6 +112,8 @@ function openGoal(goal?: Goal) {
   goalReminders.value = goal?.reminderEnabled ?? true
   goalTime.value = goal?.reminderTime ?? '09:00'
   goalPerPeriod.value = String(goal?.remindersPerPeriod ?? 1)
+  useCustomTimes.value = goal?.period === 'daily' && (goal.reminderSlots?.length ?? 0) > 0
+  goalSlots.value = goal?.reminderSlots?.length ? goal.reminderSlots.map((slot) => ({ ...slot })) : [blankSlot()]
   goalOpen.value = true
 }
 
@@ -125,6 +154,7 @@ async function saveGoal() {
       reminderEnabled: goalReminders.value,
       remindersPerPeriod: Number(goalPerPeriod.value) || 1,
       reminderTime: goalTime.value,
+      reminderSlots: goalPeriod.value === 'daily' && useCustomTimes.value ? goalSlots.value : [],
     })
     goalOpen.value = false
     toast.success('Goal saved.')
@@ -195,6 +225,7 @@ async function logPrompt(prompt: ExpensePrompt) {
       category: prompt.category,
       note: prompt.title,
       date: date.toISOString(),
+      paidWith: 'cash',
     })
     promptAmounts.value = { ...promptAmounts.value, [prompt.id]: '' }
     toast.success('Expense logged.')
@@ -235,6 +266,7 @@ async function run(action: () => Promise<void> | void) {
               <CardTitle>{{ goal.emoji }} {{ goal.title }}</CardTitle>
               <CardDescription>
                 {{ goal.completedCount }} / {{ goal.targetCount }} this {{ goal.period === 'daily' ? 'day' : goal.period === 'weekly' ? 'week' : 'month' }}
+                · {{ goalSummary(goal.id).totalDone }} total
                 · {{ goalSummary(goal.id).thisMonthDone }} this month
               </CardDescription>
             </CardHeader>
@@ -291,7 +323,7 @@ async function run(action: () => Promise<void> | void) {
     </Tabs>
 
     <Dialog v-model:open="goalOpen">
-      <DialogContent>
+      <DialogContent class="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader><DialogTitle>{{ editingGoal ? 'Edit goal' : 'Create goal' }}</DialogTitle></DialogHeader>
         <form class="grid gap-4" @submit.prevent="saveGoal">
           <div class="grid gap-2"><Label>Name</Label><Input v-model="goalTitle" placeholder="Drink water" /></div>
@@ -311,7 +343,22 @@ async function run(action: () => Promise<void> | void) {
             </div>
           </div>
           <div class="flex items-center justify-between"><Label>Reminders</Label><Switch v-model="goalReminders" /></div>
-          <div class="grid grid-cols-2 gap-3">
+          <div v-if="goalPeriod === 'daily'" class="flex items-center justify-between">
+            <Label>Custom exact times</Label>
+            <Switch v-model="useCustomTimes" />
+          </div>
+          <div v-if="goalPeriod === 'daily' && useCustomTimes" class="grid gap-2">
+            <Button type="button" variant="outline" @click="applyNamaz">
+              Namaz preset
+            </Button>
+            <div v-for="slot in goalSlots" :key="slot.id" class="grid grid-cols-[1fr_8rem_auto] gap-2">
+              <Input v-model="slot.label" placeholder="Label" />
+              <Input v-model="slot.time" type="time" />
+              <Button type="button" variant="ghost" @click="goalSlots = goalSlots.length <= 1 ? goalSlots : goalSlots.filter((item) => item.id !== slot.id)">Remove</Button>
+            </div>
+            <Button type="button" variant="outline" @click="goalSlots = [...goalSlots, blankSlot()]">Add time</Button>
+          </div>
+          <div v-else class="grid grid-cols-2 gap-3">
             <div class="grid gap-2"><Label>Time</Label><Input v-model="goalTime" type="time" /></div>
             <div class="grid gap-2"><Label>Times per period</Label><Input v-model="goalPerPeriod" inputmode="numeric" /></div>
           </div>
@@ -321,7 +368,7 @@ async function run(action: () => Promise<void> | void) {
     </Dialog>
 
     <Dialog v-model:open="reminderOpen">
-      <DialogContent>
+      <DialogContent class="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader><DialogTitle>{{ editingReminder ? 'Edit reminder' : 'Create reminder' }}</DialogTitle></DialogHeader>
         <form class="grid gap-4" @submit.prevent="saveReminder">
           <div class="grid gap-2"><Label>Name</Label><Input v-model="reminderTitle" placeholder="Bike oil" /></div>
@@ -340,7 +387,22 @@ async function run(action: () => Promise<void> | void) {
           <div class="grid gap-2"><Label>Time</Label><Input v-model="reminderTime" type="time" /></div>
           <div v-if="reminderKind === 'once'" class="grid gap-2"><Label>Date</Label><Input v-model="reminderDate" type="date" /></div>
           <div v-if="reminderKind === 'monthly'" class="grid gap-2"><Label>Day of month</Label><Input v-model="reminderMonthDay" inputmode="numeric" /></div>
-          <div v-if="reminderKind === 'interval'" class="grid gap-2"><Label>Every how many days</Label><Input v-model="reminderInterval" inputmode="numeric" /></div>
+          <div v-if="reminderKind === 'interval'" class="grid gap-2">
+            <Label>Every how many days</Label>
+            <div class="flex flex-wrap gap-2">
+              <Button
+                v-for="days in INTERVAL_PRESETS"
+                :key="days"
+                type="button"
+                size="sm"
+                :variant="reminderInterval === String(days) ? 'default' : 'outline'"
+                @click="reminderInterval = String(days)"
+              >
+                {{ days }}d
+              </Button>
+            </div>
+            <Input v-model="reminderInterval" inputmode="numeric" />
+          </div>
           <div class="flex items-center justify-between"><Label>Enabled</Label><Switch v-model="reminderEnabled" /></div>
           <DialogFooter><Button type="submit">Save</Button></DialogFooter>
         </form>

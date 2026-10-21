@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { format } from 'date-fns'
+import { addDays, format, isSameDay, parseISO, startOfWeek } from 'date-fns'
 import { computed, ref } from 'vue'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
@@ -21,6 +22,7 @@ import {
   formatMoney,
   incomeBreakdown,
   monthlyTrend,
+  noteBreakdown,
   rangeForPreset,
   sumByCategories,
   VEHICLE_CATEGORIES,
@@ -35,7 +37,16 @@ const customTo = ref('')
 const type = ref<TypeFilter>('all')
 const noteFilter = ref<NoteFilter>('all')
 const search = ref('')
+const amountMin = ref('')
+const amountMax = ref('')
 const selectedCategories = ref<string[]>([])
+
+function optionalAmount(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
 
 const range = computed(() => rangeForPreset(preset.value, customFrom.value, customTo.value))
 const ranged = computed(() =>
@@ -50,6 +61,8 @@ const filtered = computed(() =>
     type: type.value,
     search: search.value,
     noteFilter: noteFilter.value,
+    amountMin: optionalAmount(amountMin.value),
+    amountMax: optionalAmount(amountMax.value),
   }),
 )
 const expenses = computed(() => filtered.value.filter((tx) => tx.type === 'expense'))
@@ -59,7 +72,41 @@ const breakdown = computed(() => categoryBreakdown(expenses.value))
 const sources = computed(() => incomeBreakdown(income.value))
 const trend = computed(() => monthlyTrend(transactions.value, new Date(), 6))
 const missing = computed(() => countMissingDetails(filtered.value))
+const notes = computed(() => noteBreakdown(expenses.value))
+const week = computed(() => {
+  const start = startOfWeek(range.value.to, { weekStartsOn: 0 })
+  return Array.from({ length: 7 }, (_, index) => {
+    const day = addDays(start, index)
+    const total = expenses.value
+      .filter((tx) => isSameDay(parseISO(tx.date), day))
+      .reduce((sum, tx) => sum + tx.amount, 0)
+    return { label: format(day, 'EEE'), total }
+  })
+})
+const maxWeek = computed(() => Math.max(1, ...week.value.map((day) => day.total)))
 const maxTrend = computed(() => Math.max(1, ...trend.value.map((point) => Math.max(point.totalIncome, point.totalExpenses))))
+const filtersOn = computed(
+  () =>
+    preset.value !== 'thisMonth' ||
+    type.value !== 'all' ||
+    noteFilter.value !== 'all' ||
+    !!search.value.trim() ||
+    !!amountMin.value.trim() ||
+    !!amountMax.value.trim() ||
+    selectedCategories.value.length > 0,
+)
+
+function clearFilters() {
+  preset.value = 'thisMonth'
+  customFrom.value = ''
+  customTo.value = ''
+  type.value = 'all'
+  noteFilter.value = 'all'
+  search.value = ''
+  amountMin.value = ''
+  amountMax.value = ''
+  selectedCategories.value = []
+}
 
 function money(amount: number) {
   return formatMoney(amount, profile.value.currency || 'USD')
@@ -78,6 +125,7 @@ function toggleCategory(name: string) {
       <h1 class="text-2xl font-semibold">Charts</h1>
       <p class="text-sm text-muted-foreground">
         {{ format(range.from, 'd MMM') }} to {{ format(range.to, 'd MMM yyyy') }}
+        · {{ filtered.length }} of {{ ranged.length }} transactions
       </p>
     </div>
 
@@ -107,6 +155,11 @@ function toggleCategory(name: string) {
         </SelectContent>
       </Select>
       <Input v-model="search" placeholder="Search" />
+    </div>
+    <div class="grid gap-3 md:grid-cols-3">
+      <Input v-model="amountMin" inputmode="decimal" placeholder="Min amount" />
+      <Input v-model="amountMax" inputmode="decimal" placeholder="Max amount" />
+      <Button v-if="filtersOn" variant="outline" @click="clearFilters">Clear filters</Button>
     </div>
     <div v-if="preset === 'custom'" class="grid gap-3 md:grid-cols-2">
       <Input v-model="customFrom" type="date" />
@@ -179,5 +232,36 @@ function toggleCategory(name: string) {
         <p class="mt-3 text-xs text-muted-foreground">Green is income. Red is expenses.</p>
       </CardContent>
     </Card>
+
+    <div class="grid gap-4 lg:grid-cols-2">
+      <Card>
+        <CardHeader><CardTitle>Spending this week</CardTitle></CardHeader>
+        <CardContent>
+          <div class="flex h-40 items-end gap-3">
+            <div v-for="day in week" :key="day.label" class="flex flex-1 flex-col items-center gap-2">
+              <div class="flex h-28 w-full items-end justify-center">
+                <div class="w-4 rounded-t bg-primary" :style="{ height: `${(day.total / maxWeek) * 100}%` }" />
+              </div>
+              <p class="text-xs text-muted-foreground">{{ day.label }}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle>Spending by notes</CardTitle></CardHeader>
+        <CardContent class="space-y-3">
+          <p v-if="!notes.length" class="text-sm text-muted-foreground">No notes in this range.</p>
+          <div v-for="row in notes" :key="row.note">
+            <div class="mb-1 flex justify-between gap-3 text-sm">
+              <span class="truncate">{{ row.note }}</span>
+              <span class="shrink-0">{{ money(row.amount) }} · {{ row.percentage.toFixed(0) }}%</span>
+            </div>
+            <div class="h-2 rounded-full bg-muted">
+              <div class="h-2 rounded-full bg-primary" :style="{ width: `${row.percentage}%` }" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   </div>
 </template>

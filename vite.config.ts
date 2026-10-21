@@ -15,6 +15,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '@aco': fileURLToPath(new URL('../aco', import.meta.url)),
       cn: fileURLToPath(new URL('./src/lib/utils.ts', import.meta.url)),
     },
   },

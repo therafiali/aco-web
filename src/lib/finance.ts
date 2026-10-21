@@ -19,6 +19,7 @@ import {
   PETROL_REFUEL_REMINDER_ID,
   PETROL_REFUEL_TIME,
 } from '@/lib/fuel'
+import { applyPaidWithOverlay, forgetPaidWith, rememberPaidWith } from '@/lib/device-options'
 import { clampIntervalDays, clampMonthDay } from '@/lib/schedule'
 import type {
   ExpensePrompt,
@@ -71,7 +72,7 @@ export async function refreshFinance() {
       fetchReminders(),
     ])
     profile.value = nextProfile
-    transactions.value = nextTransactions
+    transactions.value = applyPaidWithOverlay(nextTransactions)
     goalProgress.value = nextProgress
     reminders.value = nextReminders.filter((item) => item.isActive)
     const now = new Date()
@@ -109,6 +110,7 @@ export async function saveTransactionRecord(input: {
   category?: string
   note?: string
   date: string
+  paidWith?: Transaction['paidWith']
 }) {
   const tx: Transaction = {
     id: input.id ?? crypto.randomUUID(),
@@ -117,7 +119,9 @@ export async function saveTransactionRecord(input: {
     category: input.type === 'expense' ? input.category : undefined,
     note: input.note?.trim() || undefined,
     date: input.date,
+    paidWith: input.type === 'expense' ? (input.paidWith === 'online' ? 'online' : 'cash') : undefined,
   }
+  rememberPaidWith(tx.id, tx.paidWith)
   await upsertTransaction(tx)
   const index = transactions.value.findIndex((item) => item.id === tx.id)
   if (index >= 0) transactions.value[index] = tx
@@ -126,6 +130,7 @@ export async function saveTransactionRecord(input: {
 
 export async function removeTransactionRecord(id: string) {
   await deleteTransaction(id)
+  forgetPaidWith(id)
   transactions.value = transactions.value.filter((item) => item.id !== id)
 }
 

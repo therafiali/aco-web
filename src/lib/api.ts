@@ -38,8 +38,16 @@ function optionalString(value: unknown) {
   return String(value)
 }
 
+let paidWithColumn: boolean | null = null
+
+function missingPaidColumn(error: { message?: string; code?: string } | null) {
+  if (!error) return false
+  return error.code === '42703' || /paid_with/i.test(error.message ?? '')
+}
+
 export function transactionFromRow(row: Row): Transaction {
   const type = row.type === 'income' ? 'income' : 'expense'
+  const paidRaw = row.paid_with ?? row.paidWith
   return {
     id: asString(row.id),
     amount: asNumber(row.amount),
@@ -47,6 +55,7 @@ export function transactionFromRow(row: Row): Transaction {
     category: optionalString(row.category),
     note: optionalString(row.note),
     date: asString(row.date),
+    paidWith: paidRaw === 'online' || paidRaw === 'cash' ? paidRaw : undefined,
   }
 }
 
@@ -172,32 +181,69 @@ export async function saveProfile(profile: UserProfile) {
   fail(error)
 }
 
-export async function fetchTransactions() {
-  const userId = await requireUserId()
-  const { data, error } = await supabase
+const TX_COLUMNS = 'id, amount, type, category, note, date'
+const TX_COLUMNS_WITH_PAID = `${TX_COLUMNS}, paid_with`
+
+function transactionQuery(userId: string, columns: string) {
+  return supabase
     .from('transactions')
-    .select('id, amount, type, category, note, date')
+    .select(columns as 'id, amount, type, category, note, date')
     .eq('user_id', userId)
     .order('date', { ascending: false })
-  fail(error)
-  return (data ?? []).map((row) => transactionFromRow(row))
+}
+
+export async function fetchTransactions() {
+  const userId = await requireUserId()
+  const columns: string = paidWithColumn === false ? TX_COLUMNS : TX_COLUMNS_WITH_PAID
+  const first = await transactionQuery(userId, columns)
+  if (first.error && paidWithColumn !== false && missingPaidColumn(first.error)) {
+    paidWithColumn = false
+    const second = await transactionQuery(userId, TX_COLUMNS)
+    fail(second.error)
+    return (second.data ?? []).map((row) => transactionFromRow(row as unknown as Row))
+  }
+  fail(first.error)
+  paidWithColumn = true
+  return (first.data ?? []).map((row) => transactionFromRow(row as unknown as Row))
+}
+
+function transactionRow(userId: string, tx: Transaction, includePaid: boolean) {
+  const row: Record<string, unknown> = {
+    id: tx.id,
+    user_id: userId,
+    amount: tx.amount,
+    type: tx.type,
+    category: tx.category ?? null,
+    note: tx.note ?? null,
+    date: tx.date,
+    updated_at: new Date().toISOString(),
+  }
+  if (includePaid) {
+    row.paid_with = tx.type === 'expense' ? (tx.paidWith === 'online' ? 'online' : 'cash') : null
+  }
+  return row
 }
 
 export async function upsertTransaction(tx: Transaction) {
   const userId = await requireUserId()
-  const { error } = await supabase.from('transactions').upsert(
-    {
-      id: tx.id,
-      user_id: userId,
-      amount: tx.amount,
-      type: tx.type,
-      category: tx.category ?? null,
-      note: tx.note ?? null,
-      date: tx.date,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'id' },
-  )
+  if (paidWithColumn === false) {
+    const { error } = await supabase
+      .from('transactions')
+      .upsert(transactionRow(userId, tx, false), { onConflict: 'id' })
+    fail(error)
+    return
+  }
+  const { error } = await supabase
+    .from('transactions')
+    .upsert(transactionRow(userId, tx, true), { onConflict: 'id' })
+  if (error && missingPaidColumn(error)) {
+    paidWithColumn = false
+    const retry = await supabase
+      .from('transactions')
+      .upsert(transactionRow(userId, tx, false), { onConflict: 'id' })
+    fail(retry.error)
+    return
+  }
   fail(error)
 }
 

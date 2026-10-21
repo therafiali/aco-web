@@ -47,7 +47,8 @@ export function toDateKey(date: Date) {
 export function dateFromKey(dateKey: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return null
   const [year, month, day] = dateKey.split('-').map(Number)
-  const date = new Date(year, (month ?? 1) - 1, day ?? 1)
+  if (year == null || month == null || day == null) return null
+  const date = new Date(year, month - 1, day)
   return Number.isNaN(date.getTime()) ? null : date
 }
 
