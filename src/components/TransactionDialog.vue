@@ -79,8 +79,10 @@ function focusField(id: string) {
   document.getElementById(id)?.focus()
 }
 
+type CategoryOption = { label: string; color: string }
+
 const categories = computed(() => {
-  const items = DEFAULT_CATEGORIES.map((item) => ({
+  const items: CategoryOption[] = DEFAULT_CATEGORIES.map((item) => ({
     label: item.label,
     color: item.color,
   }))
